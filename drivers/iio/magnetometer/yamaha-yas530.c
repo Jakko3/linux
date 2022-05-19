@@ -310,8 +310,6 @@ static s32 yas5xx_linearize(struct yas5xx *yas5xx, u16 val, int axis)
  * @yo: Y axis out
  * @zo: Z axis out
  * @return: 0 on success or error code
- *
- * Returned values are in nanotesla according to some code.
  */
 static int yas5xx_get_measure(struct yas5xx *yas5xx, s32 *to, s32 *xo, s32 *yo, s32 *zo)
 {
@@ -421,10 +419,10 @@ static int yas5xx_read_raw(struct iio_dev *indio_dev,
 		 * The axis values are in nanotesla according to the vendor
 		 * drivers, but is clearly in microtesla according to
 		 * experiments. Since 1 uT = 0.01 Gauss, we need to divide
-		 * by 100000000 (10^8) to get to Gauss from the raw value.
+		 * by 100 to get to Gauss from the raw value.
 		 */
 		*val = 1;
-		*val2 = 100000000;
+		*val2 = 100;
 		return IIO_VAL_FRACTIONAL;
 	default:
 		/* Unknown request */
