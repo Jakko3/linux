@@ -210,6 +210,11 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&imu_irq_default>;
 	};
+
+	magnetometer@2e {
+		compatible = "yamaha,yas537";
+		reg = <0x2e>;
+	};
 };
 
 &blsp_i2c4 {
