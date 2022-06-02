@@ -251,13 +251,9 @@ static int yas5xx_measure(struct yas5xx *yas5xx, u16 *t, u16 *x, u16 *y1, u16 *y
 		*y1 = yas532_extract_axis(&data[4]);
 		*y2 = yas532_extract_axis(&data[6]);
 		break;
-	default:
-		dev_err(yas5xx->dev, "unknown data format\n");
-		ret = -EINVAL;
-		break;
 	}
 
-	return ret;
+	return 0;
 
 out_unlock:
 	mutex_unlock(&yas5xx->lock);
@@ -289,9 +285,6 @@ static s32 yas5xx_linearize(struct yas5xx *yas5xx, u16 val, int axis)
 			/* Elaborate coefficients */
 			coef = yas532ac_coef[axis];
 		break;
-	default:
-		dev_err(yas5xx->dev, "unknown device type\n");
-		return val;
 	}
 	/*
 	 * Linearization formula:
@@ -798,9 +791,6 @@ static int yas5xx_meaure_offsets(struct yas5xx *yas5xx)
 	case YAS532_DEVICE_ID:
 		center = YAS532_DATA_CENTER;
 		break;
-	default:
-		dev_err(yas5xx->dev, "unknown device type\n");
-		return -EINVAL;
 	}
 
 	/*
