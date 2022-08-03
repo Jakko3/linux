@@ -168,6 +168,11 @@ struct yas5xx;
  * @scaling_val2: scaling value for IIO_CHAN_INFO_SCALE
  * @t_ref: number of counts at reference temperature
  * @min_temp_x10: starting point of temperature counting in 1/10:s degrees Celsius
+ * @get_measure: function pointer to get a measurement
+ * @get_calibration_data: function pointer to get calibration data
+ * @dump_calibration: function pointer to dump calibration for debugging
+ * @measure_offsets: function pointer to measure the offsets
+ * @power_on: function pointer to power-on procedure
  */
 struct yas5xx_chip_info {
 	unsigned int devid;
@@ -178,13 +183,18 @@ struct yas5xx_chip_info {
 	u32 scaling_val2;
 	u16 t_ref;
 	s16 min_temp_x10;
+	int (*get_measure)(struct yas5xx *yas5xx, s32 *to, s32 *xo, s32 *yo, s32 *zo);
+	int (*get_calibration_data)(struct yas5xx *yas5xx);
+	void (*dump_calibration)(struct yas5xx *yas5xx);
+	int (*measure_offsets)(struct yas5xx *yas5xx);
+	int (*power_on)(struct yas5xx *yas5xx);
 };
 
 /**
  * struct yas5xx - state container for the YAS5xx driver
  * @dev: parent device pointer
  * @chip: enumeration of the device variant
- * @chip_info: device-specific data
+ * @chip_info: device-specific data and function pointers
  * @version: device version
  * @calibration: calibration settings from the OTP storage
  * @hard_offsets: offsets for each axis measured with initcoil actuated
@@ -488,7 +498,7 @@ static int yas5xx_read_raw(struct iio_dev *indio_dev,
 	case IIO_CHAN_INFO_PROCESSED:
 	case IIO_CHAN_INFO_RAW:
 		pm_runtime_get_sync(yas5xx->dev);
-		ret = yas530_get_measure(yas5xx, &t, &x, &y, &z);
+		ret = yas5xx->chip_info->get_measure(yas5xx, &t, &x, &y, &z);
 		pm_runtime_mark_last_busy(yas5xx->dev);
 		pm_runtime_put_autosuspend(yas5xx->dev);
 		if (ret)
@@ -528,7 +538,7 @@ static void yas5xx_fill_buffer(struct iio_dev *indio_dev)
 	int ret;
 
 	pm_runtime_get_sync(yas5xx->dev);
-	ret = yas530_get_measure(yas5xx, &t, &x, &y, &z);
+	ret = yas5xx->chip_info->get_measure(yas5xx, &t, &x, &y, &z);
 	pm_runtime_mark_last_busy(yas5xx->dev);
 	pm_runtime_put_autosuspend(yas5xx->dev);
 	if (ret) {
@@ -941,6 +951,11 @@ static const struct yas5xx_chip_info yas5xx_chip_info_tbl[] = {
 		.scaling_val2 = 100000000, /* picotesla to Gauss */
 		.t_ref = t_ref_counts[yas530],
 		.min_temp_x10 = min_temp_celsius_x10[yas530],
+		.get_measure = yas530_get_measure,
+		.get_calibration_data = yas530_get_calibration_data,
+		.dump_calibration = yas530_dump_calibration,
+		.measure_offsets = yas530_measure_offsets,
+		.power_on = yas530_power_on,
 	},
 	[yas532] = {
 		.devid = YAS532_DEVICE_ID,
@@ -951,6 +966,11 @@ static const struct yas5xx_chip_info yas5xx_chip_info_tbl[] = {
 		.scaling_val2 = 100000, /* nanotesla to Gauss */
 		.t_ref = t_ref_counts[yas532],
 		.min_temp_x10 = min_temp_celsius_x10[yas532],
+		.get_measure = yas530_get_measure,
+		.get_calibration_data = yas532_get_calibration_data,
+		.dump_calibration = yas530_dump_calibration,
+		.measure_offsets = yas530_measure_offsets,
+		.power_on = yas530_power_on,
 	},
 	[yas533] = {
 		.devid = YAS532_DEVICE_ID,
@@ -961,6 +981,11 @@ static const struct yas5xx_chip_info yas5xx_chip_info_tbl[] = {
 		.scaling_val2 = 100000, /* nanotesla to Gauss */
 		.t_ref = t_ref_counts[yas533],
 		.min_temp_x10 = min_temp_celsius_x10[yas533],
+		.get_measure = yas530_get_measure,
+		.get_calibration_data = yas532_get_calibration_data,
+		.dump_calibration = yas530_dump_calibration,
+		.measure_offsets = yas530_measure_offsets,
+		.power_on = yas530_power_on,
 	},
 };
 
@@ -1031,34 +1056,24 @@ static int yas5xx_probe(struct i2c_client *i2c,
 		goto assert_reset;
 	}
 
-	switch (yas5xx->chip_info->devid) {
-	case YAS530_DEVICE_ID:
-		ret = yas530_get_calibration_data(yas5xx);
-		if (ret)
-			goto assert_reset;
-		break;
-	case YAS532_DEVICE_ID:
-		ret = yas532_get_calibration_data(yas5xx);
-		if (ret)
-			goto assert_reset;
-		break;
-	default:
-		ret = -ENODEV;
-		dev_err(dev, "unhandled device ID %02x\n",
-			yas5xx->chip_info->devid);
+	ret = yas5xx->chip_info->get_calibration_data(yas5xx);
+	if (ret)
 		goto assert_reset;
-	}
 
 	dev_info(dev, "detected %s %s\n", yas5xx->chip_info->product_name,
 		 yas5xx->chip_info->version_name[yas5xx->version]);
 
-	yas530_dump_calibration(yas5xx);
-	ret = yas530_power_on(yas5xx);
+	yas5xx->chip_info->dump_calibration(yas5xx);
+
+	ret = yas5xx->chip_info->power_on(yas5xx);
 	if (ret)
 		goto assert_reset;
-	ret = yas530_measure_offsets(yas5xx);
-	if (ret)
-		goto assert_reset;
+
+	if (yas5xx->chip_info->measure_offsets) {
+		ret = yas5xx->chip_info->measure_offsets(yas5xx);
+		if (ret)
+			goto assert_reset;
+	}
 
 	indio_dev->info = &yas5xx_info;
 	indio_dev->available_scan_masks = yas5xx_scan_masks;
@@ -1155,7 +1170,7 @@ static int __maybe_unused yas5xx_runtime_resume(struct device *dev)
 	usleep_range(31000, 40000);
 	gpiod_set_value_cansleep(yas5xx->reset, 0);
 
-	ret = yas530_power_on(yas5xx);
+	ret = yas5xx->chip_info->power_on(yas5xx);
 	if (ret) {
 		dev_err(dev, "cannot power on\n");
 		goto out_reset;
