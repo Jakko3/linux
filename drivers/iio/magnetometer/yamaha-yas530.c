@@ -114,6 +114,11 @@ static const char * const yas5xx_version_names[][2] = {
 	[yas533] = { "AB", "AC" },
 };
 
+static const int yas530_volatile_reg[] = {
+	YAS530_ACTUATE_INIT_COIL,
+	YAS530_MEASURE,
+};
+
 struct yas5xx_calibration {
 	/* Linearization calibration x, y1, y2 */
 	s32 r[3];
@@ -135,11 +140,15 @@ struct yas5xx;
  * @devid: device ID number
  * @product_name: product name of the YAS variant
  * @version_name: version letter or naming
+ * @volatile_reg: device-specific volatile registers
+ * @volatile_reg_qty: quantity of device-specific volatile registers
  */
 struct yas5xx_chip_info {
 	unsigned int devid;
 	const char *product_name;
 	const char * const *version_name;
+	const int *volatile_reg;
+	int volatile_reg_qty;
 };
 
 /**
@@ -626,9 +635,25 @@ static const struct iio_info yas5xx_info = {
 
 static bool yas5xx_volatile_reg(struct device *dev, unsigned int reg)
 {
-	return reg == YAS530_ACTUATE_INIT_COIL ||
-		reg == YAS530_MEASURE ||
-		(reg >= YAS5XX_MEASURE_DATA && reg < YAS5XX_MEASURE_DATA + 8);
+	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+	struct yas5xx *yas5xx = iio_priv(indio_dev);
+	int reg_qty;
+	int i;
+
+	if (reg >= YAS5XX_MEASURE_DATA && reg < YAS5XX_MEASURE_DATA + 8)
+		return true;
+
+	/*
+	 * YAS versions share different registers on the same address,
+	 * need to differentiate.
+	 */
+	reg_qty = yas5xx->chip_info->volatile_reg_qty;
+	for (i = 0; i < reg_qty; i++) {
+		if (reg == yas5xx->chip_info->volatile_reg[i])
+			return true;
+	}
+
+	return false;
 }
 
 /* TODO: enable regmap cache, using mark dirty and sync at runtime resume */
@@ -932,16 +957,22 @@ static const struct yas5xx_chip_info yas5xx_chip_info_tbl[] = {
 		.devid = YAS530_DEVICE_ID,
 		.product_name = yas5xx_product_name[yas530],
 		.version_name = yas5xx_version_names[yas530],
+		.volatile_reg = yas530_volatile_reg,
+		.volatile_reg_qty = ARRAY_SIZE(yas530_volatile_reg),
 	},
 	[yas532] = {
 		.devid = YAS532_DEVICE_ID,
 		.product_name = yas5xx_product_name[yas532],
 		.version_name = yas5xx_version_names[yas532],
+		.volatile_reg = yas530_volatile_reg,
+		.volatile_reg_qty = ARRAY_SIZE(yas530_volatile_reg),
 	},
 	[yas533] = {
 		.devid = YAS532_DEVICE_ID,
 		.product_name = yas5xx_product_name[yas533],
 		.version_name = yas5xx_version_names[yas533],
+		.volatile_reg = yas530_volatile_reg,
+		.volatile_reg_qty = ARRAY_SIZE(yas530_volatile_reg),
 	},
 };
 
