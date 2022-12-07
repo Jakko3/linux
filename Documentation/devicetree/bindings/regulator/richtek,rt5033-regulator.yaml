@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/regulator/richtek,rt5033-regulator.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Richtek RT5033 PIMC Voltage Regulator
+
+maintainers:
+  - Jakob Hauser <jahau@rocketmail.com>
+
+description:
+  The regulators of RT5033 have to be instantiated under a sub-node named
+  "regulators". For "safe_ldo" voltage there is only one value of 4.9 V. "ldo"
+  voltage ranges from 1.2 V to 3.0 V in 0.1 V steps. "buck" voltage ranges from
+  1.0 V to 3.0 V in 0.1 V steps.
+
+patternProperties:
+  "^(safe_ldo|ldo|buck)$":
+    type: object
+    $ref: /schemas/regulator/regulator.yaml#
+    unevaluatedProperties: false
+
+additionalProperties: false
