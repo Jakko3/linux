@@ -55,7 +55,8 @@ static const struct regmap_config rt5033_regmap_config = {
 static int rt5033_i2c_probe(struct i2c_client *i2c)
 {
 	struct rt5033_dev *rt5033;
-	unsigned int dev_id;
+	unsigned int data;
+	unsigned int chip_rev;
 	int ret;
 
 	rt5033 = devm_kzalloc(&i2c->dev, sizeof(*rt5033), GFP_KERNEL);
@@ -73,12 +74,13 @@ static int rt5033_i2c_probe(struct i2c_client *i2c)
 		return PTR_ERR(rt5033->regmap);
 	}
 
-	ret = regmap_read(rt5033->regmap, RT5033_REG_DEVICE_ID, &dev_id);
+	ret = regmap_read(rt5033->regmap, RT5033_REG_DEVICE_ID, &data);
 	if (ret) {
 		dev_err(&i2c->dev, "Device not found\n");
 		return -ENODEV;
 	}
-	dev_info(&i2c->dev, "Device found Device ID: %04x\n", dev_id);
+	chip_rev = data & RT5033_CHIP_REV_MASK;
+	dev_info(&i2c->dev, "Device found (rev. %d)\n", chip_rev);
 
 	ret = regmap_add_irq_chip(rt5033->regmap, rt5033->irq,
 			IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
