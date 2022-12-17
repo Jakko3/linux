@@ -298,6 +298,17 @@ static int rt5033_charger_reg_init(struct rt5033_charger *charger)
 		return -EINVAL;
 	}
 
+	/*
+	 * Enable high impedance mode. It stops charging or boosting and
+	 * operates at a low current sinking to reduce power consumption.
+	 */
+	ret = regmap_update_bits(charger->rt5033->regmap, RT5033_REG_CHG_CTRL1,
+			RT5033_CHGCTRL1_HZ_MASK, RT5033_CHARGER_HZ_ENABLE);
+	if (ret) {
+		dev_err(charger->dev, "Failed to enable high impedance mode.\n");
+		return -EINVAL;
+	}
+
 	ret = rt5033_init_pre_charge(charger);
 	if (ret)
 		return ret;
@@ -318,6 +329,14 @@ static int rt5033_charger_set_otg(struct rt5033_charger *charger)
 	int ret;
 
 	mutex_lock(&charger->lock);
+
+	/* Disable high impedance mode to allow OTG mode */
+	ret = regmap_update_bits(charger->rt5033->regmap, RT5033_REG_CHG_CTRL1,
+			RT5033_CHGCTRL1_HZ_MASK, RT5033_CHARGER_HZ_DISABLE);
+	if (ret) {
+		dev_err(charger->dev, "Failed to disable high impedance mode.\n");
+		return -EINVAL;
+	}
 
 	/* Set OTG boost v_out to 5 volts */
 	ret = regmap_update_bits(charger->rt5033->regmap, RT5033_REG_CHG_CTRL2,
@@ -381,6 +400,14 @@ static int rt5033_charger_set_charging(struct rt5033_charger *charger)
 
 	mutex_lock(&charger->lock);
 
+	/* Disable high impedance mode to allow charging mode */
+	ret = regmap_update_bits(charger->rt5033->regmap, RT5033_REG_CHG_CTRL1,
+			RT5033_CHGCTRL1_HZ_MASK, RT5033_CHARGER_HZ_DISABLE);
+	if (ret) {
+		dev_err(charger->dev, "Failed to disable high impedance mode.\n");
+		return -EINVAL;
+	}
+
 	/* In case someone switched from OTG to charging directly */
 	if (charger->otg) {
 		ret = rt5033_charger_unset_otg(charger);
@@ -430,6 +457,14 @@ static int rt5033_charger_set_disconnect(struct rt5033_charger *charger)
 	int ret;
 
 	mutex_lock(&charger->lock);
+
+	/* Enable high impedance mode to reduce power consumption */
+	ret = regmap_update_bits(charger->rt5033->regmap, RT5033_REG_CHG_CTRL1,
+			RT5033_CHGCTRL1_HZ_MASK, RT5033_CHARGER_HZ_ENABLE);
+	if (ret) {
+		dev_err(charger->dev, "Failed to enable high impedance mode.\n");
+		return -EINVAL;
+	}
 
 	/* Disable MIVR if enabled */
 	if (charger->mivr_enabled) {
@@ -671,11 +706,21 @@ static int rt5033_charger_probe(struct platform_device *pdev)
 
 	/*
 	 * Extcon support is not vital for the charger to work. If no extcon
-	 * is available, just emit a warning and leave the probe function.
+	 * is available, just emit a warning, disable high impedance mode and
+	 * leave the probe function.
 	 */
 	charger->edev = extcon_get_edev_by_phandle(&pdev->dev, 0);
 	if (IS_ERR(charger->edev)) {
 		dev_warn(&pdev->dev, "no extcon phandle found in device-tree\n");
+		ret = regmap_update_bits(charger->rt5033->regmap,
+					 RT5033_REG_CHG_CTRL1,
+					 RT5033_CHGCTRL1_HZ_MASK,
+					 RT5033_CHARGER_HZ_DISABLE);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"Failed to disable high impedance mode.\n");
+			return -EINVAL;
+		}
 		goto out;
 	}
 
