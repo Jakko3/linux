@@ -22,6 +22,33 @@ static int rt5033_battery_get_capacity(struct i2c_client *client)
 	return msb;
 }
 
+static int rt5033_battery_get_status(struct i2c_client *client)
+{
+	struct rt5033_battery *battery = i2c_get_clientdata(client);
+	struct power_supply *charger;
+	union power_supply_propval val;
+	int capacity;
+	int ret;
+
+	capacity = rt5033_battery_get_capacity(battery->client);
+
+	if (capacity == 100)
+		return POWER_SUPPLY_STATUS_FULL;
+
+	charger = power_supply_get_by_name("rt5033-charger");
+	if (!charger)
+		return -ENODEV;
+
+	ret = power_supply_get_property(charger, POWER_SUPPLY_PROP_STATUS, &val);
+	if (ret) {
+		power_supply_put(charger);
+		return POWER_SUPPLY_STATUS_UNKNOWN;
+	}
+
+	power_supply_put(charger);
+	return val.intval;
+}
+
 static int rt5033_battery_get_present(struct i2c_client *client)
 {
 	struct rt5033_battery *battery = i2c_get_clientdata(client);
@@ -81,6 +108,9 @@ static int rt5033_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_PRESENT:
 		val->intval = rt5033_battery_get_present(battery->client);
 		break;
+	case POWER_SUPPLY_PROP_STATUS:
+		val->intval = rt5033_battery_get_status(battery->client);
+		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		val->intval = rt5033_battery_get_capacity(battery->client);
 		break;
@@ -95,6 +125,7 @@ static enum power_supply_property rt5033_battery_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_AVG,
 	POWER_SUPPLY_PROP_VOLTAGE_OCV,
 	POWER_SUPPLY_PROP_PRESENT,
+	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_CAPACITY,
 };
 
