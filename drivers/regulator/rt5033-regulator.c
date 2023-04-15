@@ -41,8 +41,8 @@ static const struct regulator_ops rt5033_buck_ops = {
 
 static const struct regulator_desc rt5033_supported_regulators[] = {
 	[RT5033_BUCK] = {
-		.name		= "BUCK",
-		.of_match	= of_match_ptr("BUCK"),
+		.name		= "buck",
+		.of_match	= of_match_ptr("buck"),
 		.regulators_node = of_match_ptr("regulators"),
 		.id		= RT5033_BUCK,
 		.ops		= &rt5033_buck_ops,
@@ -57,8 +57,8 @@ static const struct regulator_desc rt5033_supported_regulators[] = {
 		.vsel_mask	= RT5033_BUCK_CTRL_MASK,
 	},
 	[RT5033_LDO] = {
-		.name		= "LDO",
-		.of_match	= of_match_ptr("LDO"),
+		.name		= "ldo",
+		.of_match	= of_match_ptr("ldo"),
 		.regulators_node = of_match_ptr("regulators"),
 		.id		= RT5033_LDO,
 		.ops		= &rt5033_buck_ops,
@@ -73,8 +73,8 @@ static const struct regulator_desc rt5033_supported_regulators[] = {
 		.vsel_mask	= RT5033_LDO_CTRL_MASK,
 	},
 	[RT5033_SAFE_LDO] = {
-		.name		= "SAFE_LDO",
-		.of_match	= of_match_ptr("SAFE_LDO"),
+		.name		= "safe_ldo",
+		.of_match	= of_match_ptr("safe_ldo"),
 		.regulators_node = of_match_ptr("regulators"),
 		.id		= RT5033_SAFE_LDO,
 		.ops		= &rt5033_safe_ldo_ops,
