@@ -22,6 +22,8 @@ properties:
   interrupts:
     maxItems: 1
 
+  power-supplies: true
+
 required:
   - compatible
   - reg
